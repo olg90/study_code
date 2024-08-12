@@ -1,0 +1,150 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Constants
+C_m = 1  # Membrane capacitance (uF/cm^2)
+g_Na = 40.0  # Maximum sodium conductance (mS/cm^2)
+g_K = 35  # Maximum potassium conductance (mS/cm^2)
+g_L = 0.3  # Leak conductance (mS/cm^2)
+E_Na = 55.0  # Sodium reversal potential (mV)
+E_K = -77.0  # Potassium reversal potential (mV)
+E_L = -65  # Leak reversal potential (mV)
+
+# Time parameters
+T = 50  # Total time (ms)
+dt = 0.01  # Time step (ms)
+time = np.arange(0, T, dt)  # Time array
+
+# Applied current
+I_ext = np.zeros(len(time))
+I0=10
+tlen=1
+t1=1
+t2=10
+I_ext[int(t1/dt):int((t1+tlen)/dt)] = I0  # 1 uA/cm^2 current pulse from 10 ms to 15 ms
+I_ext[int(t2/dt):int((t2+tlen)/dt)] = I0
+
+
+# Constant input
+# =============================================================================
+# I_ext = np.ones(len(time))*1 #uA/cm^2 current pulse from 10 ms to 15 ms
+# =============================================================================
+
+# Initial conditions
+V = -65.0  # Initial membrane potential (mV)
+m = 0.05  # Initial sodium activation gating variable
+h = 0.6   # Initial sodium inactivation gating variable
+n = 0 # Initial potassium activation gating variable
+
+# =============================================================================
+# # Define gating variable equations (dm/dt, dh/dt, dn/dt)
+# def dm_dt(V, m):
+#     return (0.1 * (V + 40) / (1 - np.exp(-(V + 40) / 10))) * (1 - m) - 4.0 * np.exp(-(V + 65) / 18) * m
+# 
+# def dh_dt(V, h):
+#     return 0.07 * np.exp(-(V + 65) / 20) * (1 - h) - 1.0 / (1 + np.exp(-(V + 35) / 10)) * h
+# 
+# def dn_dt(V, n):
+#     return (0.01 * (V + 55) / (1 - np.exp(-(V + 55) / 10))) * (1 - n) - 0.125 * np.exp(-(V + 65) / 80) * n
+# =============================================================================
+
+def alphan(u):
+    return 0.02*(u-25)/(1-np.exp(-(u-25)/9))
+def alpham(u):
+    return 0.182*(u+35)/(1-np.exp(-(u+35)/9))
+def alphah(u):
+    return 0.25*np.exp(-(u+90)/12)
+
+def betan(u):
+    return -0.002*(u-25)/(1-np.exp((u-25)/9))
+def betam(u):
+    return -0.124*(u+35)/(1-np.exp((u+35)/9))
+def betah(u):
+    return 0.25*np.exp((u+62)/6)/np.exp((u+90)/12)
+
+# Arrays to store values
+V_trace = np.zeros(len(time))
+m_trace = np.zeros(len(time))
+h_trace = np.zeros(len(time))
+n_trace = np.zeros(len(time))
+I_Na_trace = np.zeros(len(time))
+I_K_trace = np.zeros(len(time))
+I_L_trace = np.zeros(len(time))
+
+V_trace[0]=V
+m_trace[0]=m
+h_trace[0]=h
+n_trace[0]=n
+
+# Simulation loop
+for i in range(1, len(time)):
+    # Update gating variables
+
+    dmdt = alpham(V)*(1-m)-betam(V)*m
+    dndt = alphan(V)*(1-n)-betan(V)*n
+    dhdt = alphah(V)*(1-h)-betah(V)*h
+    
+    m = m + dmdt*dt
+    h = h + dhdt*dt
+    n = n + dndt*dt
+    
+# =============================================================================
+#     m += dm_dt(V, m) * dt
+#     h += dh_dt(V, h) * dt
+#     n += dn_dt(V, n) * dt
+# =============================================================================
+    
+    # Calculate conductances
+    g_Na_t = g_Na * (m ** 3) * h
+    g_K_t = g_K * (n ** 4)
+    
+    # Calculate currents
+    I_Na = g_Na_t * (V - E_Na)
+    I_K = g_K_t * (V - E_K)
+    I_L = g_L * (V - E_L)
+    
+    # Update membrane potential
+    dV_dt = (I_ext[i] - I_Na - I_K - I_L) / C_m
+    V += dV_dt * dt
+    
+    # Store results
+    V_trace[i] = V
+    m_trace[i] = m
+    h_trace[i] = h
+    n_trace[i] = n
+    I_Na_trace[i] = I_Na
+    I_K_trace[i] = I_K
+    I_L_trace[i] = I_L
+
+# Plot results
+plt.figure(figsize=(6,6))
+
+# Plot membrane potential
+plt.subplot(3, 1, 1)
+plt.plot(time, V_trace, label='Membrane Potential (mV)')
+plt.ylabel('V (mV)')
+plt.title('Membrane Potential')
+plt.grid()
+
+# Plot all gating variables together
+plt.subplot(3, 1, 2)
+plt.plot(time, m_trace, label='m')
+plt.plot(time, h_trace, label='h')
+plt.plot(time, n_trace, label='n')
+plt.ylabel('Gating Variables')
+plt.title('Gating Variables (m, h, n)')
+plt.legend()
+plt.grid()
+
+# Plot all currents together
+plt.subplot(3, 1, 3)
+plt.plot(time, I_Na_trace, label='I_Na')
+plt.plot(time, I_K_trace, label='I_K')
+plt.plot(time, I_L_trace, label='I_L')
+plt.ylabel('Current (uA/cm^2)')
+plt.title('Currents (I_Na, I_K, I_L)')
+plt.legend()
+plt.grid()
+
+plt.tight_layout()
+plt.show()
